@@ -1,0 +1,56 @@
+# ===========================================================================
+# Ledger de Certificados — .gitignore
+# ===========================================================================
+
+# --- Secretos / entorno ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+backend/staticfiles/
+*.sqlite3
+
+# --- Node / Frontend ---
+node_modules/
+**/node_modules/
+dist/
+frontend/dist/
+.vite/
+*.local
+npm-debug.log*
+
+# --- Docker / Caddy ---
+caddy_data/
+caddy_config/
+
+# --- TS / Vite build artifacts ---
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# --- Editores / SO ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

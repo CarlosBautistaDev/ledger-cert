@@ -1,0 +1,55 @@
+# Caddyfile — Ledger de Certificados de Conformidad
+# Reverse proxy + terminación TLS interno.
+#
+# 'tls internal' emite un certificado con la CA interna de Caddy, 100% offline
+# (sin ACME ni DNS público). El navegador mostrará un aviso de certificado no
+# confiable en dev: acéptalo.
+
+{
+	auto_https disable_redirects
+}
+
+# HTTP -> HTTPS. El SNI (localhost) nunca lleva puerto, por lo que
+# https://localhost:8443 resuelve el cert de 'localhost' correctamente.
+http://localhost {
+	redir https://{host}{uri} permanent
+}
+
+https://localhost {
+	tls internal
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'"
+		Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+		-Server
+	}
+
+	# API REST -> backend Django/Gunicorn. Forzamos X-Forwarded-Proto=https
+	# (Django confía en este header para CSRF/secure).
+	handle /api/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle /admin/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle /static/* {
+		reverse_proxy api:8000 {
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# Todo lo demás -> SPA (nginx-unprivileged escucha en 8080).
+	handle {
+		reverse_proxy web:8080
+	}
+}

@@ -1,0 +1,10 @@
+# =============================================================================
+# Ledger de Certificados — Dependencias de DEV/TEST (pinned).
+# NO se instalan en la imagen de producción. La imagen dev/CI las incluye vía
+# el build arg INSTALL_DEV=true (Dockerfile / docker-compose.yml).
+# =============================================================================
+-r requirements.txt
+
+pytest==8.3.5
+pytest-django==4.9.0
+pytest-cov==6.1.1
