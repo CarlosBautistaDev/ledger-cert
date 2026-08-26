@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { AxiosError } from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -41,8 +42,10 @@ export function CertificateDetailPage(): React.ReactElement {
       await api.post(`/ledger/certificates/${id}/sign/`, { password });
       setPassword("");
       await qc.invalidateQueries({ queryKey: ["certificate", id] });
-    } catch {
-      setMsg("No se pudo firmar (revisa rol Firmante y contraseña).");
+    } catch (error) {
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data
+        ?.detail;
+      setMsg(detail ?? "No se pudo firmar. Intenta otra vez.");
     }
   };
 
@@ -68,8 +71,10 @@ export function CertificateDetailPage(): React.ReactElement {
       );
       await qc.invalidateQueries({ queryKey: ["certificates"] });
       navigate(`/certificates/${res.data.id}`);
-    } catch {
-      setMsg("No se pudo corregir. Revisa los datos, tu rol y contraseña.");
+    } catch (error) {
+      const detail = (error as AxiosError<{ detail?: string }>).response?.data
+        ?.detail;
+      setMsg(detail ?? "No se pudo corregir. Intenta otra vez.");
     }
   };
 

@@ -49,6 +49,9 @@ def test_firmante_cannot_create_draft(auth_client, firmante_user) -> None:
         format="json",
     )
     assert resp.status_code == status.HTTP_403_FORBIDDEN
+    assert str(resp.data["detail"]) == (
+        "Solo un Firmante o Administrador puede firmar certificados."
+    )
 
 
 def test_firmante_signs_certificate(

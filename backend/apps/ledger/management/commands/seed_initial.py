@@ -1,15 +1,14 @@
 """Idempotent seed for the Ledger.
 
-Creates ONLY:
+Creates:
 
-* the Admin role (Django Group) and the admin superuser (from ``ADMIN_EMAIL`` /
+* the fixed role groups and the admin superuser (from ``ADMIN_EMAIL`` /
   ``ADMIN_PASSWORD``), added to the Admin group,
 * two example certificates (one BORRADOR, one FIRMADO) created and signed by the
   admin, so there is data to see.
 
-The remaining roles (Elaborador / Firmante / Auditor) and the user/role
-management are **not** seeded on purpose: building that management — so an Admin
-can create those users and roles — is a candidate task (see README).
+The seed only creates the Admin account. The other groups are available so the
+administrator can create the operational accounts from the application.
 
 Idempotent (``get_or_create`` by natural key): re-running does not duplicate.
 """
@@ -31,7 +30,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    """Seed the Admin role, the admin user and example certificates."""
+    """Crea los grupos, la cuenta Admin y los certificados de ejemplo."""
 
     help = "Seed the Admin role, admin user and example certificates (idempotent)."
 
@@ -45,13 +44,13 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Seed inicial completado."))
 
     def _seed_admin(self) -> "User":
-        """Create the Admin group and the admin superuser (member of it).
-
-        The other roles are intentionally not created here — that is the
-        candidate's task.\n
+        """Crea los grupos fijos y el superusuario Admin.\n
         :returns: the admin user.\n
         """
-        admin_group, _ = Group.objects.get_or_create(name=role_defs.ROLE_ADMIN)
+        grupos = {
+            spec["clave"]: Group.objects.get_or_create(name=spec["clave"])[0]
+            for spec in role_defs.ROLES
+        }
         email = settings.ADMIN_EMAIL
         user = User.objects.filter(email__iexact=email).first()
         if user is None:
@@ -63,7 +62,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"  Admin {email}: creado."))
         else:
             self.stdout.write(f"  Admin {email}: ya existe.")
-        user.groups.add(admin_group)
+        user.groups.add(grupos[role_defs.ROLE_ADMIN])
         return user
 
     def _seed_certificates(self, admin: "User") -> None:

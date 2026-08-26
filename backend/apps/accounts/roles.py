@@ -90,6 +90,12 @@ SIGN_ROLES: frozenset = frozenset({ROLE_ADMIN, ROLE_FIRMANTE})
 #: Roles allowed to manage users.
 USER_ADMIN_ROLES: frozenset = frozenset({ROLE_ADMIN})
 
+# Roles que un administrador puede asignar desde la gestion diaria. Admin se
+# reserva para la cuenta principal y no se entrega desde la pantalla.
+ASSIGNABLE_ROLES: frozenset = frozenset(
+    {ROLE_ELABORADOR, ROLE_FIRMANTE, ROLE_AUDITOR}
+)
+
 
 def role_label_map() -> Dict[str, RoleSpec]:
     """Return a ``key -> RoleSpec`` index for fast lookups.\n

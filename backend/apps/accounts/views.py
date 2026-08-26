@@ -34,7 +34,9 @@ from .serializers import (
     LedgerTokenObtainPairSerializer,
     RoleSerializer,
     UserSerializer,
+    UserWriteSerializer,
 )
+from apps.audit.pghistory_drf import PGHistoryContextMixin
 
 User = get_user_model()
 
@@ -158,21 +160,20 @@ class MeView(APIView):
         return Response(UserSerializer(request.user).data)
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    """Read-only user listing — restricted to the Admin.
-
-    NOTE (candidate task): user and role management — creating users, assigning
-    roles and soft-delete — is intentionally NOT implemented here. Building it,
-    reusing the project's conventions (``roles.py`` as the source of truth,
-    ``IsAdmin``, the audit trail via ``PGHistoryContextMixin`` and a read/write
-    serializer pair), is part of the assessment. See the README.
-    """
+class UserViewSet(PGHistoryContextMixin, viewsets.ModelViewSet):
+    """Gestion de usuarios y roles, disponible solo para Administracion."""
 
     queryset = User.objects.all().order_by("email")
-    serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     search_fields = ["email", "nombre"]
     ordering_fields = ["email", "nombre", "date_joined"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def get_serializer_class(self) -> type:
+        """Usa el formato de escritura solo al dar de alta o editar."""
+        if self.action in {"create", "partial_update"}:
+            return UserWriteSerializer
+        return UserSerializer
 
 
 class RoleViewSet(viewsets.ReadOnlyModelViewSet):

@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -105,3 +106,70 @@ class UserSerializer(serializers.ModelSerializer):
     def get_roles(self, obj: Any) -> List[str]:
         """Return the user's role keys."""
         return list(obj.groups.values_list("name", flat=True))
+
+
+class UserWriteSerializer(serializers.ModelSerializer):
+    """Alta y mantenimiento basico de usuarios desde Administracion."""
+
+    roles = serializers.ListField(
+        child=serializers.ChoiceField(choices=sorted(role_defs.ASSIGNABLE_ROLES)),
+        min_length=1,
+        max_length=1,
+    )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=10,
+        required=False,
+        trim_whitespace=False,
+    )
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "nombre", "activo", "roles", "password"]
+        read_only_fields = ["id"]
+
+    def validate_email(self, value: str) -> str:
+        """Normaliza el correo igual que el modelo antes de revisar duplicados."""
+        email = value.lower()
+        existe = User.objects.filter(email__iexact=email)
+        if self.instance is not None:
+            existe = existe.exclude(pk=self.instance.pk)
+        if existe.exists():
+            raise serializers.ValidationError("Ya existe un usuario con ese correo.")
+        return email
+
+    def validate(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+        """Pide contraseña al dar de alta y evita mezclar funciones."""
+        if self.instance is None and not attrs.get("password"):
+            raise serializers.ValidationError({"password": "La contraseña es obligatoria."})
+        password = attrs.get("password")
+        if password:
+            candidate = User(
+                email=attrs.get("email", getattr(self.instance, "email", "")),
+                nombre=attrs.get("nombre", getattr(self.instance, "nombre", "")),
+            )
+            validate_password(password, user=candidate)
+        return attrs
+
+    def create(self, validated_data: Dict[str, Any]) -> User:
+        """Crea la cuenta y agrega su unico rol operativo."""
+        roles = validated_data.pop("roles")
+        password = validated_data.pop("password")
+        user = User.objects.create_user(password=password, **validated_data)
+        group, _ = Group.objects.get_or_create(name=roles[0])
+        user.groups.set([group])
+        return user
+
+    def update(self, instance: User, validated_data: Dict[str, Any]) -> User:
+        """Actualiza los datos permitidos sin borrar el historial de la cuenta."""
+        roles = validated_data.pop("roles", None)
+        password = validated_data.pop("password", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        if roles is not None:
+            group, _ = Group.objects.get_or_create(name=roles[0])
+            instance.groups.set([group])
+        return instance

@@ -4,6 +4,7 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { CertificateListPage } from "@/features/certificates/CertificateListPage";
 import { CertificateCreatePage } from "@/features/certificates/CertificateCreatePage";
 import { CertificateDetailPage } from "@/features/certificates/CertificateDetailPage";
+import { UserManagementPage } from "@/features/users/UserManagementPage";
 
 /** Application routes. */
 export function AppRoutes(): React.ReactElement {
@@ -14,6 +15,7 @@ export function AppRoutes(): React.ReactElement {
         <Route index element={<CertificateListPage />} />
         <Route path="certificates/new" element={<CertificateCreatePage />} />
         <Route path="certificates/:id" element={<CertificateDetailPage />} />
+        <Route path="users" element={<UserManagementPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

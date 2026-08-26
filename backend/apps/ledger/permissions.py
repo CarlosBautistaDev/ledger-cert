@@ -47,7 +47,14 @@ class CertificatePermission(ReadAllWriteByRole):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
-        if getattr(view, "action", None) in {"sign", "supersede"}:
+        action = getattr(view, "action", None)
+        if action == "sign":
+            self.message = "Solo un Firmante o Administrador puede firmar certificados."
+            return _user_in_any(request.user, roles.SIGN_ROLES)
+        if action == "supersede":
+            self.message = (
+                "Solo un Firmante o Administrador puede emitir una correccion."
+            )
             return _user_in_any(request.user, roles.SIGN_ROLES)
         return _user_in_any(request.user, self.write_roles)
 

@@ -22,6 +22,11 @@ export function Layout({
           Ledger de Certificados
         </button>
         <div className="flex items-center gap-3 text-sm">
+          {(user?.is_superuser || user?.roles.includes("Admin")) && (
+            <Button variant="outline" onClick={() => navigate("/users")}>
+              Usuarios
+            </Button>
+          )}
           <span className="text-muted-foreground">
             {user?.nombre} {user?.roles?.length ? `(${user.roles.join(", ")})` : ""}
           </span>
