@@ -80,6 +80,15 @@ class Certificate(models.Model):
     firma_ts = models.DateTimeField(_("fecha de firma"), null=True, blank=True)
     firma_hash = models.CharField(_("hash de firma"), max_length=64, blank=True, default="")
 
+    reemplaza = models.OneToOneField(
+        "self",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="reemplazado_por",
+        verbose_name=_("reemplaza a"),
+    )
+
     creado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.RESTRICT,
@@ -119,3 +128,9 @@ class Certificate(models.Model):
             "veredicto": self.veredicto,
             "observaciones": self.observaciones,
         }
+
+    @property
+    def esta_vigente(self) -> bool:
+        """Indica si no existe una correccion firmada posterior."""
+        reemplazo = getattr(self, "reemplazado_por", None)
+        return not bool(reemplazo and reemplazo.firmada)

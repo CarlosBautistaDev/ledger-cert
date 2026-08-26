@@ -10,6 +10,9 @@ export interface Certificate {
   firmada: boolean;
   firma_ts: string | null;
   firma_hash: string;
+  reemplaza_id: number | null;
+  reemplazado_por_id: number | null;
+  esta_vigente: boolean;
   created_at: string;
 }
 

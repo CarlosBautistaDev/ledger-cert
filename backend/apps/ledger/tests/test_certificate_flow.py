@@ -129,10 +129,10 @@ def test_draft_certificate_is_editable(auth_client, elaborador_user) -> None:
     assert Certificate.objects.get(id=cert_id).asunto == "Asunto corregido"
 
 
-def test_supersede_is_not_implemented_yet(
+def test_admin_supersedes_a_signed_certificate_without_changing_the_original(
     auth_client, admin_user
 ) -> None:
-    """The supersede action returns 501 (candidate task, Part 1).\n
+    """Crea la correccion firmada sin tocar el certificado original.\n
     :param auth_client: factory that authenticates the client as a user.\n
     :param admin_user: seeded admin (can create and sign).\n
     """
@@ -143,7 +143,56 @@ def test_supersede_is_not_implemented_yet(
         {"password": "Ledger-Test-12345!"},
         format="json",
     )
+    original = Certificate.objects.get(id=cert_id)
+    original_asunto = original.asunto
+    original_hash = original.firma_hash
     resp = client.post(
-        f"/api/ledger/certificates/{cert_id}/supersede/", {}, format="json"
+        f"/api/ledger/certificates/{cert_id}/supersede/",
+        {
+            "codigo": "CERT-SUP-OK",
+            "asunto": "Asunto ya corregido",
+            "emitido_a": "Cliente corregido",
+            "veredicto": "NO_CONFORME",
+            "observaciones": "Se corrigio el dato del asunto.",
+            "password": "Ledger-Test-12345!",
+        },
+        format="json",
     )
-    assert resp.status_code == status.HTTP_501_NOT_IMPLEMENTED
+    assert resp.status_code == status.HTTP_201_CREATED, resp.data
+
+    original.refresh_from_db()
+    reemplazo = Certificate.objects.get(id=resp.data["id"])
+    assert original.estado == EstadoCertificado.FIRMADO
+    assert original.asunto == original_asunto
+    assert original.firma_hash == original_hash
+    assert original.esta_vigente is False
+    assert reemplazo.reemplaza_id == original.id
+    assert reemplazo.estado == EstadoCertificado.FIRMADO
+    assert reemplazo.firmada is True
+    assert reemplazo.esta_vigente is True
+
+
+def test_supersede_rejects_a_second_correction(auth_client, admin_user) -> None:
+    """No deja crear dos correcciones directas del mismo certificado."""
+    client = auth_client(admin_user)
+    cert_id = _create_draft(client, codigo="CERT-SUP-ONCE")
+    client.post(
+        f"/api/ledger/certificates/{cert_id}/sign/",
+        {"password": "Ledger-Test-12345!"},
+        format="json",
+    )
+    datos = {
+        "codigo": "CERT-SUP-ONCE-1",
+        "asunto": "Correccion",
+        "veredicto": "CONFORME",
+        "password": "Ledger-Test-12345!",
+    }
+    assert client.post(
+        f"/api/ledger/certificates/{cert_id}/supersede/", datos, format="json"
+    ).status_code == status.HTTP_201_CREATED
+
+    datos["codigo"] = "CERT-SUP-ONCE-2"
+    resp = client.post(
+        f"/api/ledger/certificates/{cert_id}/supersede/", datos, format="json"
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT

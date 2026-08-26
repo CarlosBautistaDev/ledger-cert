@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, viewsets
@@ -22,7 +23,11 @@ from apps.audit.pghistory_drf import PGHistoryContextMixin
 
 from .models import Certificate, EstadoCertificado
 from .permissions import CertificatePermission
-from .serializers import CertificateSerializer, CertificateWriteSerializer
+from .serializers import (
+    CertificateSerializer,
+    CertificateSupersedeSerializer,
+    CertificateWriteSerializer,
+)
 from .signatures import BasicSignatureProvider
 
 
@@ -45,6 +50,8 @@ class CertificateViewSet(PGHistoryContextMixin, viewsets.ModelViewSet):
         """
         if self.action in {"create", "update", "partial_update"}:
             return CertificateWriteSerializer
+        if self.action == "supersede":
+            return CertificateSupersedeSerializer
         return CertificateSerializer
 
     def perform_create(self, serializer: Any) -> None:
@@ -115,22 +122,61 @@ class CertificateViewSet(PGHistoryContextMixin, viewsets.ModelViewSet):
     def supersede(self, request: Request, pk: Optional[str] = None) -> Response:
         """Correct a signed certificate by issuing a replacement (SUPERSEDE).
 
-        A signed certificate is immutable, so a correction must NOT edit it: it
-        must create a NEW certificate that supersedes the original, leaving
-        the original intact and marking it as REEMPLAZADO.\n
+        Un certificado firmado no se edita. La correccion crea otro registro
+        firmado y enlazado al original, asi el original queda intacto como
+        historial y solo el nuevo se considera vigente.\n
         :param request: request with the corrected fields in the body.\n
         :param pk: id of the signed certificate to supersede.\n
-        :returns: not implemented yet (candidate task).\n
+        :returns: el certificado corregido (201), o un error (403/400/409).\n
         """
-        # TODO(candidate): implementar la corrección de un certificado firmado
-        # (ver README, Tarea 1).
+        permiso = CertificatePermission()
+        if not permiso.can_sign(request=request, view=self):
+            return Response(
+                {"detail": _("Se requiere el rol Firmante para corregir.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        password = serializer.validated_data.pop("password")
+        if not request.user.check_password(password):
+            return Response(
+                {"detail": _("Contraseña incorrecta.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        with transaction.atomic():
+            certificado = Certificate.objects.select_for_update().get(pk=pk)
+            if not certificado.firmada:
+                return Response(
+                    {"detail": _("Solo se puede corregir un certificado firmado.")},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if Certificate.objects.filter(reemplaza=certificado).exists():
+                return Response(
+                    {"detail": _("El certificado ya tiene una corrección vigente.")},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            datos = serializer.validated_data
+            nuevo = Certificate(
+                **datos,
+                reemplaza=certificado,
+                creado_por=request.user,
+                estado=EstadoCertificado.FIRMADO,
+                firmada=True,
+                firmante=request.user,
+                firma_ts=timezone.now(),
+            )
+            provider = BasicSignatureProvider()
+            firma = provider.sign(
+                payload=nuevo.canonical_payload(),
+                meaning=f"Corrección de certificado: {nuevo.veredicto}",
+            )
+            nuevo.firma_hash = firma.hash
+            nuevo.save()
+
         return Response(
-            {
-                "detail": _(
-                    "La corrección por supersesión aún no está implementada. "
-                    "Es la tarea de la Parte 1 de la prueba técnica."
-                ),
-                "code": "not_implemented",
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+            CertificateSerializer(nuevo, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
         )

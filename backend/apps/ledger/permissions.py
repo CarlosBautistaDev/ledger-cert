@@ -47,7 +47,7 @@ class CertificatePermission(ReadAllWriteByRole):
             return False
         if request.method in permissions.SAFE_METHODS:
             return True
-        if getattr(view, "action", None) == "sign":
+        if getattr(view, "action", None) in {"sign", "supersede"}:
             return _user_in_any(request.user, roles.SIGN_ROLES)
         return _user_in_any(request.user, self.write_roles)
 

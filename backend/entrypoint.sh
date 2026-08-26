@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Este script corre dentro del contenedor Linux, por eso usa saltos de linea Unix.
 # =============================================================================
 # Ledger de Certificados — Backend entrypoint
 #
